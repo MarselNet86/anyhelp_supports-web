@@ -11,6 +11,16 @@ class Support(models.Model):
     commissioning_date = models.DateTimeField("Дата ввода в эксплуатацию", null=True, blank=True)
     owner = models.CharField("Владеющая организация", max_length=255, blank=True)
     material = models.CharField("Материал несущей конструкции", max_length=100, blank=True)
+    photo = models.ImageField("Фото", upload_to="supports/photos/", null=True, blank=True)
+    comment = models.TextField("Комментарий", blank=True)
+    
+    STATUS_CHOICES = [
+        ("accepted", "Принят"),
+        ("processing", "В обработке"),
+        ("rejected", "Отклонен"),
+        ("not_started", "Не начат")
+    ]
+    status = models.CharField("Статус", max_length=20, choices=STATUS_CHOICES, default="not_started")
 
     class Meta:
         verbose_name = "Опора"

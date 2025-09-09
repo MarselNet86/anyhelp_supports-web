@@ -218,8 +218,7 @@ def upload_progress(request):
     Возвращает прогресс загрузки (можно использовать с Celery для асинхронной обработки)
     """
     if request.method == "GET":
-        # Здесь можно получить прогресс из кэша/сессии/базы данных
-        # Для простоты возвращаем фиктивные данные
+
         progress = request.session.get('upload_progress', 0)
         return JsonResponse({
             'progress': progress,
