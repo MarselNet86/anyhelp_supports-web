@@ -1,9 +1,21 @@
 from django.db import models
-from django.contrib.auth.models import User
 
-class Profile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
-    display_name = models.CharField(max_length=150, blank=True)
+class Support(models.Model):
+    settlement = models.CharField("Населённый пункт", max_length=255)
+    branch = models.CharField("Филиал", max_length=255)
+    support_number = models.CharField("Номер опоры", max_length=50)
+    name = models.CharField("Название опоры", max_length=255, blank=True)
+    address = models.TextField("Адрес", blank=True)
+    longitude = models.DecimalField("Долгота", max_digits=15, decimal_places=10, null=True, blank=True)
+    latitude = models.DecimalField("Широта", max_digits=15, decimal_places=10, null=True, blank=True)
+    commissioning_date = models.DateTimeField("Дата ввода в эксплуатацию", null=True, blank=True)
+    owner = models.CharField("Владеющая организация", max_length=255, blank=True)
+    material = models.CharField("Материал несущей конструкции", max_length=100, blank=True)
+
+    class Meta:
+        verbose_name = "Опора"
+        verbose_name_plural = "Опоры"
+        ordering = ["settlement", "support_number"]
 
     def __str__(self):
-        return self.display_name or self.user.get_username()
+        return f"{self.name or 'Опора'} №{self.support_number} ({self.settlement})"

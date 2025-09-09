@@ -60,3 +60,10 @@ class EmailAuthForm(forms.Form):
 
     def get_user(self):
         return self.user
+    
+    
+class SupportExcelUploadForm(forms.Form):
+    file = forms.FileField(
+        label="Excel (.xlsx)",
+        widget=forms.ClearableFileInput(attrs={"accept": ".xlsx"})
+    )

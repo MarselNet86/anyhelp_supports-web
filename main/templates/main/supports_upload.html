@@ -1,0 +1,417 @@
+{% extends "main/base_dashboard.html" %}
+
+{% block dashboard_content %}
+<div class="container mx-auto px-4 py-8 max-w-4xl">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2 flex items-center">
+            <svg class="w-8 h-8 mr-3 text-brand-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+            </svg>
+            Импорт опор из Excel
+        </h1>
+        <p class="text-gray-600">Загрузите файл Excel для массового импорта данных об опорах ЛЭП</p>
+    </div>
+
+    <!-- Upload Form -->
+    <div class="bg-white rounded-2xl p-8 shadow-lg border border-gray-200 mb-6">
+        <form method="post" enctype="multipart/form-data" id="upload-form" class="space-y-6">
+            {% csrf_token %}
+            
+            <!-- File Upload Area -->
+            <div class="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center hover:border-brand-purple transition-colors duration-300" id="drop-zone">
+                <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                
+                <div id="upload-content">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Перетащите Excel файл сюда</h3>
+                    <p class="text-gray-500 mb-4">или нажмите для выбора файла</p>
+                    <button type="button" class="btn bg-brand-purple hover:bg-purple-700 text-white rounded-xl px-6 py-2 transition-colors duration-200" onclick="document.getElementById('{{ form.file.id_for_label }}').click()">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        Выбрать файл
+                    </button>
+                    {{ form.file }}
+                    <p class="text-xs text-gray-400 mt-2">Поддерживаются форматы: .xlsx, .xls (макс. 50MB)</p>
+                </div>
+
+                <!-- Selected file info -->
+                <div id="file-info" class="hidden">
+                    <div class="flex items-center justify-center space-x-3">
+                        <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-gray-900" id="file-name"></p>
+                            <p class="text-sm text-gray-500" id="file-size"></p>
+                        </div>
+                        <button type="button" onclick="clearFile()" class="text-red-500 hover:text-red-700">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Bar (initially hidden) -->
+            <div id="progress-container" class="hidden">
+                <div class="mb-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-sm font-medium text-gray-700">Прогресс загрузки</span>
+                        <span class="text-sm text-gray-500" id="progress-text">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3">
+                        <div class="bg-gradient-to-r from-brand-purple to-brand-orange h-3 rounded-full transition-all duration-300 ease-out" id="progress-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <!-- Processing status -->
+                <div id="processing-status" class="hidden">
+                    <div class="flex items-center space-x-3 text-sm text-gray-600">
+                        <div class="loading loading-spinner loading-sm text-brand-purple"></div>
+                        <span id="status-text">Обработка данных...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="flex justify-between items-center">
+                <div class="text-sm text-gray-500">
+                    <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Убедитесь, что файл содержит правильные заголовки колонок
+                </div>
+                <button type="submit" id="submit-btn" class="btn bg-brand-orange hover:bg-orange-600 text-white rounded-xl px-8 py-3 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <span id="submit-text">Загрузить данные</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Expected Format Info -->
+    <div class="bg-blue-50 rounded-2xl p-6 border border-blue-200 mb-6">
+        <h3 class="text-lg font-semibold text-blue-900 mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            Ожидаемый формат файла
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-800">
+            <div class="space-y-2">
+                <p><strong>• Населенный пункт</strong> - название населенного пункта</p>
+                <p><strong>• Филиал</strong> - название филиала</p>
+                <p><strong>• Номер опоры</strong> - уникальный номер опоры</p>
+                <p><strong>• Название</strong> - наименование опоры</p>
+                <p><strong>• Уточнение расположения(ГИД)</strong> - адрес</p>
+            </div>
+            <div class="space-y-2">
+                <p><strong>• Долгота</strong> - координата долготы</p>
+                <p><strong>• Широта</strong> - координата широты</p>
+                <p><strong>• Дата ввода в эксплуатацию</strong> - дата в формате ДД.ММ.ГГГГ</p>
+                <p><strong>• Владеющая организация</strong> - название организации</p>
+                <p><strong>• Материал несущей конструкции</strong> - тип материала</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages Area -->
+    <div id="messages" class="space-y-4 mb-6">
+        <!-- Django Messages -->
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %} rounded-2xl">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        {% if message.tags == 'success' %}
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        {% else %}
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        {% endif %}
+                    </svg>
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- Recent Uploads Stats -->
+    <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-brand-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+            Статистика последней загрузки
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="stats-container">
+            <div class="stat bg-green-50 rounded-xl p-4">
+                <div class="stat-figure text-green-600">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                </div>
+                <div class="stat-title text-green-800">Создано</div>
+                <div class="stat-value text-green-900" id="created-count">0</div>
+            </div>
+            
+            <div class="stat bg-blue-50 rounded-xl p-4">
+                <div class="stat-figure text-blue-600">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                </div>
+                <div class="stat-title text-blue-800">Обновлено</div>
+                <div class="stat-value text-blue-900" id="updated-count">0</div>
+            </div>
+            
+            <div class="stat bg-purple-50 rounded-xl p-4">
+                <div class="stat-figure text-purple-600">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+                <div class="stat-title text-purple-800">Всего</div>
+                <div class="stat-value text-purple-900" id="total-count">0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .stat {
+        @apply text-center;
+    }
+    .stat-figure {
+        @apply flex justify-center mb-2;
+    }
+    .stat-title {
+        @apply text-sm font-medium;
+    }
+    .stat-value {
+        @apply text-2xl font-bold;
+    }
+    #{{ form.file.id_for_label }} {
+        @apply sr-only;
+    }
+</style>
+
+<script>
+    let selectedFile = null;
+
+    // Drag and drop functionality
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('{{ form.file.id_for_label }}');
+    const submitBtn = document.getElementById('submit-btn');
+    const uploadForm = document.getElementById('upload-form');
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+    });
+
+    function highlight(e) {
+        dropZone.classList.add('border-brand-purple', 'bg-purple-50');
+    }
+
+    function unhighlight(e) {
+        dropZone.classList.remove('border-brand-purple', 'bg-purple-50');
+    }
+
+    dropZone.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0) {
+            handleFile(files[0]);
+        }
+    }
+
+    fileInput.addEventListener('change', function() {
+        if (this.files.length > 0) {
+            handleFile(this.files[0]);
+        }
+    });
+
+    function handleFile(file) {
+        if (!file.name.match(/\.(xlsx|xls)$/i)) {
+            showMessage('Пожалуйста, выберите файл Excel (.xlsx или .xls)', 'error');
+            return;
+        }
+
+        if (file.size > 50 * 1024 * 1024) { // 50MB
+            showMessage('Файл слишком большой. Максимальный размер: 50MB', 'error');
+            return;
+        }
+
+        selectedFile = file;
+        showFileInfo(file);
+        submitBtn.disabled = false;
+    }
+
+    function showFileInfo(file) {
+        document.getElementById('upload-content').classList.add('hidden');
+        document.getElementById('file-info').classList.remove('hidden');
+        document.getElementById('file-name').textContent = file.name;
+        document.getElementById('file-size').textContent = formatFileSize(file.size);
+    }
+
+    function clearFile() {
+        selectedFile = null;
+        fileInput.value = '';
+        document.getElementById('upload-content').classList.remove('hidden');
+        document.getElementById('file-info').classList.add('hidden');
+        submitBtn.disabled = true;
+        hideProgress();
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function showProgress() {
+        document.getElementById('progress-container').classList.remove('hidden');
+    }
+
+    function hideProgress() {
+        document.getElementById('progress-container').classList.add('hidden');
+        document.getElementById('progress-bar').style.width = '0%';
+        document.getElementById('progress-text').textContent = '0%';
+        document.getElementById('processing-status').classList.add('hidden');
+    }
+
+    function updateProgress(percent, statusText = '') {
+        document.getElementById('progress-bar').style.width = percent + '%';
+        document.getElementById('progress-text').textContent = percent + '%';
+        
+        if (statusText) {
+            document.getElementById('processing-status').classList.remove('hidden');
+            document.getElementById('status-text').textContent = statusText;
+        }
+    }
+
+    function showMessage(message, type = 'success') {
+        const messagesContainer = document.getElementById('messages');
+        
+        const messageEl = document.createElement('div');
+        messageEl.className = `alert ${type === 'success' ? 'alert-success' : 'alert-error'} rounded-2xl`;
+        
+        const iconPath = type === 'success' 
+            ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'
+            : 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z';
+        
+        messageEl.innerHTML = `
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"></path>
+            </svg>
+            <span>${message}</span>
+        `;
+        
+        messagesContainer.appendChild(messageEl);
+        
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            messageEl.remove();
+        }, 5000);
+    }
+
+    // Form submission with AJAX and progress
+    uploadForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (!selectedFile) {
+            showMessage('Пожалуйста, выберите файл для загрузки', 'error');
+            return;
+        }
+
+        const formData = new FormData(this);
+        
+        submitBtn.disabled = true;
+        document.getElementById('submit-text').textContent = 'Загружается...';
+        showProgress();
+
+        // Simulate upload progress
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            progress += Math.random() * 10;
+            if (progress > 85) progress = 85; // Stop at 85% until real response
+            
+            let statusText = '';
+            if (progress < 30) statusText = 'Загрузка файла...';
+            else if (progress < 60) statusText = 'Чтение данных...';
+            else statusText = 'Обработка строк...';
+            
+            updateProgress(Math.floor(progress), statusText);
+        }, 200);
+
+        // Actual AJAX request
+        fetch(uploadForm.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            clearInterval(progressInterval);
+            
+            if (data.success) {
+                // Complete progress
+                updateProgress(100, 'Сохранение в базу данных...');
+                
+                setTimeout(() => {
+                    // Update stats
+                    document.getElementById('created-count').textContent = data.created;
+                    document.getElementById('updated-count').textContent = data.updated;
+                    document.getElementById('total-count').textContent = data.total;
+                    
+                    showMessage(data.message, 'success');
+                    
+                    if (data.errors && data.errors.length > 0) {
+                        showMessage(`Обработано с ошибками в ${data.errors.length} строках. Проверьте консоль для деталей.`, 'error');
+                        console.warn('Ошибки импорта:', data.errors);
+                    }
+                    
+                    hideProgress();
+                    clearFile();
+                }, 1000);
+            } else {
+                showMessage(data.error || 'Произошла ошибка при загрузке файла', 'error');
+                hideProgress();
+            }
+        })
+        .catch(error => {
+            clearInterval(progressInterval);
+            console.error('Ошибка:', error);
+            showMessage('Произошла ошибка при загрузке файла', 'error');
+            hideProgress();
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+            document.getElementById('submit-text').textContent = 'Загрузить данные';
+        });
+    });
+</script>
+{% endblock %}

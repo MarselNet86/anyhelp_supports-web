@@ -1,10 +1,11 @@
-from django.contrib import admin
 from django.urls import path
 from . import views
 
+app_name = "main"
+
 urlpatterns = [
-    path("admin/", admin.site.urls),
-    path('login/', views.login_view, name='login'),
-    path('logout/', views.login_view, name='logout'),
-    path('', views.home_view, name='home'),
+    path("login/", views.login_view, name="login"),
+    path("logout/", views.logout_view, name="logout"),
+    path('', views.supports_upload_view, name='supports_upload'),
+    path('supports/upload/progress/', views.upload_progress, name='upload_progress'),
 ]
