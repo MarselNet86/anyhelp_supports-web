@@ -1,5 +1,6 @@
-{% extends "main/base_dashboard.html" %} {% block dashboard_content %}
-<div class="container mx-auto px-4 py-8 max-w-4xl">
+{% extends "main/base_dashboard.html" %} 
+{% block dashboard_content %}
+<div class="container mx-auto px-4 py-8 max-w-7xl pb-32">
   <!-- Header -->
   <div class="mb-8">
     <h1 class="text-3xl font-bold text-gray-900 mb-2 flex items-center">
@@ -21,6 +22,12 @@
     <p class="text-gray-600">
       Загрузите файл Excel для массового импорта данных об опорах ЛЭП
     </p>
+  </div>
+
+  {% comment %} Alert container + server-side Django messages {% endcomment %}
+  <div id="messages" class="space-y-3 mb-6">
+    {% if messages %} {% for m in messages %} {% include "main/alert.html" with
+    type=m.tags text=m %} {% endfor %} {% endif %}
   </div>
 
   <!-- Upload Form -->
@@ -126,32 +133,14 @@
         </div>
       </div>
 
-      <!-- Progress Bar (initially hidden) -->
-      <div id="progress-container" class="hidden">
-        <div class="mb-4">
-          <div class="flex justify-between items-center mb-2">
-            <span class="text-sm font-medium text-gray-700"
-              >Прогресс загрузки</span
-            >
-            <span class="text-sm text-gray-500" id="progress-text">0%</span>
-          </div>
-          <div class="w-full bg-gray-200 rounded-full h-3">
-            <div
-              class="bg-gradient-to-r from-brand-purple to-brand-orange h-3 rounded-full transition-all duration-300 ease-out"
-              id="progress-bar"
-              style="width: 0%"
-            ></div>
-          </div>
-        </div>
-
-        <!-- Processing status -->
-        <div id="processing-status" class="hidden">
-          <div class="flex items-center space-x-3 text-sm text-gray-600">
-            <div
-              class="loading loading-spinner loading-sm text-brand-purple"
-            ></div>
-            <span id="status-text">Обработка данных...</span>
-          </div>
+      <!-- Loading spinner (no progress bar) -->
+      <div id="loading" class="hidden">
+        <div class="flex items-center space-x-3 text-sm text-gray-600">
+          <!-- DaisyUI spinner; замените на свой SVG при необходимости -->
+          <div
+            class="loading loading-spinner loading-sm text-brand-purple"
+          ></div>
+          <span id="status-text">Загрузка и обработка файла...</span>
         </div>
       </div>
 
@@ -200,32 +189,24 @@
 </div>
 
 <style>
-  .stat {
-      @apply text-center;
-  }
-  .stat-figure {
-      @apply flex justify-center mb-2;
-  }
-  .stat-title {
-      @apply text-sm font-medium;
-  }
-  .stat-value {
-      @apply text-2xl font-bold;
-  }
-  #{{ form.file.id_for_label }} {
-      @apply sr-only;
-  }
+  .stat { @apply text-center; }
+  .stat-figure { @apply flex justify-center mb-2; }
+  .stat-title { @apply text-sm font-medium; }
+  .stat-value { @apply text-2xl font-bold; }
+  #{{ form.file.id_for_label }} { @apply sr-only; }
+  #id_file {display: none;}
 </style>
 
 <script>
   let selectedFile = null;
 
-  // Drag and drop functionality
+  // Elements
   const dropZone = document.getElementById("drop-zone");
   const fileInput = document.getElementById("{{ form.file.id_for_label }}");
   const submitBtn = document.getElementById("submit-btn");
   const uploadForm = document.getElementById("upload-form");
 
+  // DnD
   ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
     dropZone.addEventListener(eventName, preventDefaults, false);
   });
@@ -235,36 +216,29 @@
     e.stopPropagation();
   }
 
-  ["dragenter", "dragover"].forEach((eventName) => {
-    dropZone.addEventListener(eventName, highlight, false);
-  });
+  ["dragenter", "dragover"].forEach((eventName) =>
+    dropZone.addEventListener(eventName, highlight, false)
+  );
+  ["dragleave", "drop"].forEach((eventName) =>
+    dropZone.addEventListener(eventName, unhighlight, false)
+  );
 
-  ["dragleave", "drop"].forEach((eventName) => {
-    dropZone.addEventListener(eventName, unhighlight, false);
-  });
-
-  function highlight(e) {
+  function highlight() {
     dropZone.classList.add("border-brand-purple", "bg-purple-50");
   }
-
-  function unhighlight(e) {
+  function unhighlight() {
     dropZone.classList.remove("border-brand-purple", "bg-purple-50");
   }
 
   dropZone.addEventListener("drop", handleDrop, false);
-
   function handleDrop(e) {
     const dt = e.dataTransfer;
     const files = dt.files;
-    if (files.length > 0) {
-      handleFile(files[0]);
-    }
+    if (files.length > 0) handleFile(files[0]);
   }
 
   fileInput.addEventListener("change", function () {
-    if (this.files.length > 0) {
-      handleFile(this.files[0]);
-    }
+    if (this.files.length > 0) handleFile(this.files[0]);
   });
 
   function handleFile(file) {
@@ -272,13 +246,10 @@
       showMessage("Пожалуйста, выберите файл Excel (.xlsx или .xls)", "error");
       return;
     }
-
     if (file.size > 50 * 1024 * 1024) {
-      // 50MB
       showMessage("Файл слишком большой. Максимальный размер: 50MB", "error");
       return;
     }
-
     selectedFile = file;
     showFileInfo(file);
     submitBtn.disabled = false;
@@ -299,41 +270,30 @@
     document.getElementById("upload-content").classList.remove("hidden");
     document.getElementById("file-info").classList.add("hidden");
     submitBtn.disabled = true;
-    hideProgress();
+    hideLoading();
   }
 
   function formatFileSize(bytes) {
     if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const k = 1024,
+      sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
 
-  function showProgress() {
-    document.getElementById("progress-container").classList.remove("hidden");
+  // Simple loading helpers
+  function showLoading(text = "Обработка данных...") {
+    const wrap = document.getElementById("loading");
+    wrap.classList.remove("hidden");
+    document.getElementById("status-text").textContent = text;
   }
-
-  function hideProgress() {
-    document.getElementById("progress-container").classList.add("hidden");
-    document.getElementById("progress-bar").style.width = "0%";
-    document.getElementById("progress-text").textContent = "0%";
-    document.getElementById("processing-status").classList.add("hidden");
-  }
-
-  function updateProgress(percent, statusText = "") {
-    document.getElementById("progress-bar").style.width = percent + "%";
-    document.getElementById("progress-text").textContent = percent + "%";
-
-    if (statusText) {
-      document.getElementById("processing-status").classList.remove("hidden");
-      document.getElementById("status-text").textContent = statusText;
-    }
+  function hideLoading() {
+    const wrap = document.getElementById("loading");
+    wrap.classList.add("hidden");
   }
 
   function showMessage(message, type = "success") {
     const messagesContainer = document.getElementById("messages");
-
     const messageEl = document.createElement("div");
     messageEl.className = `alert ${
       type === "success" ? "alert-success" : "alert-error"
@@ -345,24 +305,20 @@
         : "M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z";
 
     messageEl.innerHTML = `
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"></path>
-            </svg>
-            <span>${message}</span>
-        `;
-
-    messagesContainer.appendChild(messageEl);
-
-    // Auto-hide after 5 seconds
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"></path>
+      </svg>
+      <span>${message}</span>
+    `;
+    messagesContainer.insertAdjacentElement("afterbegin", messageEl);
     setTimeout(() => {
       messageEl.remove();
     }, 5000);
   }
 
-  // Form submission with AJAX and progress
+  // Submit (AJAX)
   uploadForm.addEventListener("submit", function (e) {
     e.preventDefault();
-
     if (!selectedFile) {
       showMessage("Пожалуйста, выберите файл для загрузки", "error");
       return;
@@ -372,72 +328,59 @@
 
     submitBtn.disabled = true;
     document.getElementById("submit-text").textContent = "Загружается...";
-    showProgress();
+    showLoading("Загрузка и обработка файла...");
 
-    // Simulate upload progress
-    let progress = 0;
-    const progressInterval = setInterval(() => {
-      progress += Math.random() * 10;
-      if (progress > 85) progress = 85; // Stop at 85% until real response
-
-      let statusText = "";
-      if (progress < 30) statusText = "Загрузка файла...";
-      else if (progress < 60) statusText = "Чтение данных...";
-      else statusText = "Обработка строк...";
-
-      updateProgress(Math.floor(progress), statusText);
-    }, 200);
-
-    // Actual AJAX request
     fetch(uploadForm.action, {
       method: "POST",
       body: formData,
-      headers: {
-        "X-Requested-With": "XMLHttpRequest",
-      },
+      headers: { "X-Requested-With": "XMLHttpRequest" },
     })
       .then((response) => response.json())
       .then((data) => {
-        clearInterval(progressInterval);
+        const messagesContainer = document.getElementById("messages");
+        if (data.alert_html) {
+          messagesContainer.insertAdjacentHTML("afterbegin", data.alert_html);
+          messagesContainer.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        }
 
         if (data.success) {
-          // Complete progress
-          updateProgress(100, "Сохранение в базу данных...");
+          // Обновление счётчиков, если они есть в макете
+          const createdEl = document.getElementById("created-count");
+          const updatedEl = document.getElementById("updated-count");
+          const totalEl = document.getElementById("total-count");
+          if (createdEl) createdEl.textContent = data.created;
+          if (updatedEl) updatedEl.textContent = data.updated;
+          if (totalEl) totalEl.textContent = data.total;
 
-          setTimeout(() => {
-            // Update stats
-            document.getElementById("created-count").textContent = data.created;
-            document.getElementById("updated-count").textContent = data.updated;
-            document.getElementById("total-count").textContent = data.total;
+          if (!data.alert_html) showMessage(data.message, "success");
 
-            showMessage(data.message, "success");
+          if (data.errors && data.errors.length > 0) {
+            showMessage(
+              `Обработано с ошибками в ${data.errors.length} строках. См. консоль.`,
+              "error"
+            );
+            console.warn("Ошибки импорта:", data.errors);
+          }
 
-            if (data.errors && data.errors.length > 0) {
-              showMessage(
-                `Обработано с ошибками в ${data.errors.length} строках. Проверьте консоль для деталей.`,
-                "error"
-              );
-              console.warn("Ошибки импорта:", data.errors);
-            }
-
-            hideProgress();
-            clearFile();
-          }, 1000);
+          clearFile(); // сброс выбранного файла и UI
         } else {
-          showMessage(
-            data.error || "Произошла ошибка при загрузке файла",
-            "error"
-          );
-          hideProgress();
+          if (!data.alert_html) {
+            showMessage(
+              data.error || "Произошла ошибка при загрузке файла",
+              "error"
+            );
+          }
         }
       })
       .catch((error) => {
-        clearInterval(progressInterval);
         console.error("Ошибка:", error);
         showMessage("Произошла ошибка при загрузке файла", "error");
-        hideProgress();
       })
       .finally(() => {
+        hideLoading();
         submitBtn.disabled = false;
         document.getElementById("submit-text").textContent = "Загрузить данные";
       });

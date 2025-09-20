@@ -3,6 +3,7 @@ tailwind.config = {
     extend: {
       colors: {
         "brand-orange": "#FF4F12",
+        "brand-red": "#FF0000",
         "brand-purple": "#7700FF",
         "brand-light": "#F4F4F5",
         "brand-deep-blue": "#1D1B1F",
